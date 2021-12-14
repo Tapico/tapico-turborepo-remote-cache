@@ -41,6 +41,15 @@ func GetBucketName(name string) string {
 	return hex.EncodeToString(hash[:])
 }
 
+func GetEnvironmentVariable(name string, defaultValue string) string {
+	value, ok := os.LookupEnv(name)
+	if !ok {
+		return defaultValue
+	}
+
+	return value
+}
+
 func getProviderConfig(kind string) (stow.ConfigMap, error) {
 	logger.Log("message", "getProviderConfig()")
 
@@ -48,17 +57,17 @@ func getProviderConfig(kind string) (stow.ConfigMap, error) {
 	if kind == "s3" {
 		logger.Log("message", "getting provider for Amazon S3")
 		config = stow.ConfigMap{
-			s3.ConfigEndpoint:    "http://127.0.0.1:9000",
-			s3.ConfigAccessKeyID: "turborepo",
-			s3.ConfigSecretKey:   "turborepo",
-			s3.ConfigDisableSSL:  "true",
-			s3.ConfigRegion:      "eu-west-1",
+			s3.ConfigEndpoint:    GetEnvironmentVariable("AWS_ENDPOINT", "http://127.0.0.1:9000"),
+			s3.ConfigAccessKeyID: GetEnvironmentVariable("AWS_ACCESS_KEY_ID", "turborepo"),
+			s3.ConfigSecretKey:   GetEnvironmentVariable("AWS_SECRET_ACCESS_KEY", "turborepo"),
+			s3.ConfigDisableSSL:  GetEnvironmentVariable("CLOUD_SECURE", "true"),
+			s3.ConfigRegion:      GetEnvironmentVariable("AWS_S3_REGION_NAME", "eu-west-1"),
 		}
 	} else if kind == "gcs" {
 		logger.Log("message", "getting provider for Google Cloud Storage")
-		credFile := os.Getenv("GOOGLE_CREDENTIALS_FILE")
+		credFile := GetEnvironmentVariable("GOOGLE_CREDENTIALS_FILE", "")
 		logger.Log(credFile)
-		projectID := os.Getenv("GOOGLE_PROJECT_ID")
+		projectID := GetEnvironmentVariable("GOOGLE_PROJECT_ID", "tapico-project-id")
 		logger.Log("google_project_id", projectID)
 
 		config = stow.ConfigMap{
@@ -67,7 +76,7 @@ func getProviderConfig(kind string) (stow.ConfigMap, error) {
 		}
 	} else {
 		logger.Log("message", "getting provider for Local Filesystem")
-		configPath, _ := filepath.Abs("./dev/data/filesystem/")
+		configPath, _ := filepath.Abs(GetEnvironmentVariable("CLOUD_FILESYSTEM_PATH", "./dev/data/filesystem/"))
 		logger.Log(configPath)
 
 		config = stow.ConfigMap{
@@ -84,7 +93,7 @@ func GetContainerByName(name string) (stow.Container, error) {
 	availableCloudProviders := stow.Kinds()
 	logger.Log("message", fmt.Sprintf(`GetContainerByName() availableCloudProviders=%s`, availableCloudProviders))
 
-	kind := "gcs"
+	kind := GetEnvironmentVariable("CLOUD_PROVIDER_KIND", "s3")
 	config, err := getProviderConfig(kind)
 	if err != nil {
 		logger.Log("message", "failed to get container config")
