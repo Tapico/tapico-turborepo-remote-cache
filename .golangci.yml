@@ -1,0 +1,36 @@
+---
+issues:
+  exclude-rules:
+  # helpers in tests often (rightfully) pass a *testing.T as their first argument
+  - path: _test.go
+    linters:
+      - errcheck
+  # allow to not check logger.log
+  - path: main.go
+    text: "Error return value of `logger.Log` is not checked"
+    linters:
+      - errcheck
+  # do not lint check the `gcs`-package or code section
+  - path: gcs
+    linters:
+      - errcheck
+      - godot
+      - revive
+
+run:
+  timeout: 3m
+  build-tags:
+    - integration
+
+linters:
+  enable:
+    - misspell
+    - goimports
+    - revive
+    - gofmt
+    - depguard
+    - godot
+
+linters-settings:
+  errcheck:
+    exclude: scripts/errcheck_excludes.txt

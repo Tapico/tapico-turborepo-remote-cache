@@ -1,0 +1,27 @@
+# IDE specific
+.vscode
+.idea
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Project specific
+node_modules
+tapico-turborepo-remote-cache
+
+# OS specific
+## macOS
+.DS_Store
+
+# Development data
+dev/data/
