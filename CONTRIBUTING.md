@@ -28,4 +28,4 @@ Try to be as more descriptive as you can in your Merge Request title.
 
 ## License
 
-Apache 2.0, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
