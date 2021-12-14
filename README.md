@@ -1,4 +1,4 @@
-# Company Turborepo Remote Cache
+# Tapico Turborepo Remote Cache
 
 This is an implementation of Vercel's Turborepo Remote Cache API endpointss used
 by the `turborepo` CLI command. This solution allows you to get control over were
