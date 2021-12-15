@@ -12,13 +12,15 @@ The CLI tool currently supports the following targets for the cache artificats:
 
 ## Running the application
 
-You can execute this application by running:
+You can execute this application by running when you want to store your cache artefacts
+on a Amazon S3 compatible cloud storage provider, it will start a HTTP server on port 8080:
 
 ```bash
-./tapico-turborepo-remote-cache
+./tapico-turborepo-remote-cache --kind="s3" --s3.endpoint="http://127.0.0.1:9000" --s3.accessKeyId="minio" --s3.secretKey="miniosecretkey" --s3.region="eu-west-1" --turbo-token="your-turbo-token"
 ```
 
-This will start a web-server on port `8080`
+*Note*: The above example can be used to test against the Minio instance of the `docker-compose.yml` file found in the `dev`-directory.
+
 
 ### Configuration
 
@@ -28,16 +30,43 @@ the latter will store the cache artefects on the local file system on a relative
 The configuration is currently handled via environment variables, the following
 are available:
 
-  - CLOUD_PROVIDER_KIND: `s3`, `gcs` or `local`
-  - GOOGLE_CREDENTIALS_FILE: location the google credentials json file
-  - GOOGLE_PROJECT_ID: the project id
+  - `CLOUD_PROVIDER_KIND`: `s3`, `gcs` or `local`
+  - `GOOGLE_CREDENTIALS_FILE`: location the google credentials json file
+  - `GOOGLE_PROJECT_ID`: the project id
+  - `GOOGLE_ENDPOINT`: the endpoint to use for Google Cloud Storage (e.g. for emulator)
+  - `AWS_ENDPOINT`: the endpoint to connect to for Amazon S3
+  - `AWS_ACCESS_KEY_ID`: the Amazon acces key id
+  - `AWS_SECRET_ACCESS_KEY`: the Amazon secret access key
+  - `AWS_S3_REGION_NAME`: the region for Amazon S3
+  - `CLOUD_SECURE`: whether the endpoint is secure (https) or not, can be `true` or `false`
+  - `CLOUD_FILESYSTEM_PATH`: the relative path to the file system
+  - `TURBO_TOKEN`: comma seperated list of accepted TURBO_TOKENS
 
-  - AWS_ENDPOINT: the endpoint to connect to for Amazon S3
-  - AWS_ACCESS_KEY_ID: the Amazon acces key id
-  - AWS_SECRET_ACCESS_KEY: the Amazon secret access key
-  - AWS_S3_REGION_NAME: the region for Amazon S3
-  - CLOUD_SECURE: whether the endpoint is secure (https) or not, can be `true` or `false`
-  - CLOUD_FILESYSTEM_PATH: the relative path to the file system
+Alternatively, you can also use the CLI arguments:
+
+```bash
+usage: tapico-turborepo-remote-cache --turbo-token=TURBO-TOKEN [<flags>]
+
+Flags:
+      --help                     Show context-sensitive help (also try --help-long and --help-man).
+  -v, --verbose                  Verbose mode.
+      --kind="s3"                Kind of storage provider to use (s3, gcp, local). ($CLOUD_PROVIDER_KIND)
+      --secure                   Enable secure access (or HTTPs endpoints).
+      --turbo-token=TURBO-TOKEN  The comma separated list of TURBO_TOKEN that the server should accept ($TURBO_TOKEN)
+      --google.endpoint="http://127.0.0.1:9000"
+                                 API Endpoint of cloud storage provide to use ($GOOGLE_ENDPOINT)
+      --google.project-id=GOOGLE.PROJECT-ID
+                                 The project id relevant for Google Cloud Storage ($GOOGLE_PROJECT_ID).
+      --local.project-id=LOCAL.PROJECT-ID
+                                 The relative path to storage the cache artefacts when 'local' is enabled ($CLOUD_FILESYSTEM_PATH).
+      --s3.endpoint=S3.ENDPOINT  The endpoint to use to connect to a Amazon S3 compatible cloud storage provider ($AWS_ENDPOINT).
+      --s3.accessKeyId=S3.ACCESSKEYID
+                                 The Amazon S3 Access Key Id ($AWS_ACCESS_KEY_ID).
+      --s3.secretKey=S3.SECRETKEY
+                                 The Amazon S3 secret key ($AWS_SECRET_ACCESS_KEY).
+      --s3.region=S3.REGION      The Amazon S3 region($AWS_S3_REGION_NAME).
+      --version                  Show application version.
+```
 
 ## Developing
 
