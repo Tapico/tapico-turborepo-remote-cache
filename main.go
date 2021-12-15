@@ -423,7 +423,8 @@ func initTracer() *sdktrace.TracerProvider {
 func main() {
 	kingpin.Version("0.0.1")
 	kingpin.Parse()
-	fmt.Printf("projectID: %s kind: %s localStoragePath: %s aws.endpoint: %s gogle.endpoint: %s", *googleProjectID, *kind, *localStoragePath, *awsEndpoint, *googleEndpoint)
+
+	fmt.Printf("projectID: %s kind: %s localStoragePath: %s aws.endpoint: %s google.endpoint: %s", *googleProjectID, *kind, *localStoragePath, *awsEndpoint, *googleEndpoint)
 
 	// Logfmt is a structured, key=val logging format that is easy to read and parse
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))

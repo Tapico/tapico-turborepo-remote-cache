@@ -21,7 +21,6 @@ on a Amazon S3 compatible cloud storage provider, it will start a HTTP server on
 
 *Note*: The above example can be used to test against the Minio instance of the `docker-compose.yml` file found in the `dev`-directory.
 
-
 ### Configuration
 
 The server supports three kind of cloud storage, which are `s3`, `gcs` and `local`,
@@ -67,7 +66,24 @@ Flags:
       --s3.region=S3.REGION      The Amazon S3 region($AWS_S3_REGION_NAME).
       --version                  Show application version.
 ```
+## Configuring Turbo
 
+After you have started the server you need to change the configuration of Turbo
+to ensure it's pointing to our server for the API server. Currently, any of the
+login functionality is not implemented. You can adapt the `.turbo/config.json`-file
+in the root of your mono repo.
+
+```json
+{
+  "teamId": "team_blah",
+  "apiUrl": "http://127.0.0.1:8080"
+}
+```
+
+After this you should be able to run `turbo` e.g. `turbo run build --force` to
+force the generating of new cache artefacts and upload it to our server.
+
+Alternatively, you can also use the arguments `--api="http://127.0.0.1:8080" --token="xxxxxxxxxxxxxxxxx"`
 ## Developing
 
 In the `dev` directory you can find a docker compose file which starts, a Minio
