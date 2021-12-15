@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	log "github.com/go-kit/log"
@@ -24,6 +25,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	// Routing and Cloud storage.
 	"tapico-turborepo-remote-cache/gcs"
@@ -35,6 +37,42 @@ import (
 )
 
 var logger log.Logger
+
+var (
+	app     = kingpin.New("tapico-turborepo-remote-cache", "A tool to work with Vercel Turborepo to upload/retrieve cache artefacts to/from popular cloud providers")
+	verbose = kingpin.Flag("verbose", "Verbose mode.").Short('v').Bool()
+	kind    = kingpin.Flag("kind", "Kind of storage provider to use (s3, gcp, local). ($CLOUD_PROVIDER_KIND)").Default("s3").Envar("CLOUD_PROVIDER_KIND").String()
+
+	useSecure = kingpin.Flag("secure", "Enable secure access (or HTTPs endpoints).").Bool()
+
+	allowedTurboTokens = kingpin.Flag("turbo-token", "The comma separated list of TURBO_TOKEN that the server should accept ($TURBO_TOKEN)").Envar("TURBO_TOKEN").Required().String()
+
+	googleEndpoint = kingpin.Flag("google.endpoint", "API Endpoint of cloud storage provide to use ($GOOGLE_ENDPOINT)").Default("http://127.0.0.1:9000").Envar("GOOGLE_ENDPOINT").String()
+
+	googleProjectID = kingpin.Flag(
+		"google.project-id", "The project id relevant for Google Cloud Storage ($GOOGLE_PROJECT_ID).",
+	).Envar("GOOGLE_PROJECT_ID").String()
+
+	localStoragePath = kingpin.Flag(
+		"local.project-id", "The relative path to storage the cache artefacts when 'local' is enabled ($CLOUD_FILESYSTEM_PATH).",
+	).Envar("CLOUD_FILESYSTEM_PATH").String()
+
+	awsEndpoint = kingpin.Flag(
+		"s3.endpoint", "The endpoint to use to connect to a Amazon S3 compatible cloud storage provider ($AWS_ENDPOINT).",
+	).Envar("AWS_ENDPOINT").String()
+
+	awsAccessKeyID = kingpin.Flag(
+		"s3.accessKeyId", "The Amazon S3 Access Key Id ($AWS_ACCESS_KEY_ID).",
+	).Envar("AWS_ACCESS_KEY_ID").String()
+
+	awsSecretKey = kingpin.Flag(
+		"s3.secretKey", "The Amazon S3 secret key ($AWS_SECRET_ACCESS_KEY).",
+	).Envar("AWS_SECRET_ACCESS_KEY").String()
+
+	awsRegionName = kingpin.Flag(
+		"s3.region", "The Amazon S3 region($AWS_S3_REGION_NAME).",
+	).Envar("AWS_S3_REGION_NAME").String()
+)
 
 func GetBucketName(name string) string {
 	hash := md5.Sum([]byte(name))
@@ -54,33 +92,46 @@ func getProviderConfig(kind string) (stow.ConfigMap, error) {
 	logger.Log("message", "getProviderConfig()")
 
 	var config stow.ConfigMap
+
+	var shouldDisableSSL = "false"
+	if *useSecure {
+		shouldDisableSSL = "true"
+	}
+
 	if kind == "s3" {
 		logger.Log("message", "getting provider for Amazon S3")
 		config = stow.ConfigMap{
-			s3.ConfigEndpoint:    GetEnvironmentVariable("AWS_ENDPOINT", "http://127.0.0.1:9000"),
-			s3.ConfigAccessKeyID: GetEnvironmentVariable("AWS_ACCESS_KEY_ID", "turborepo"),
-			s3.ConfigSecretKey:   GetEnvironmentVariable("AWS_SECRET_ACCESS_KEY", "turborepo"),
-			s3.ConfigDisableSSL:  GetEnvironmentVariable("CLOUD_SECURE", "true"),
-			s3.ConfigRegion:      GetEnvironmentVariable("AWS_S3_REGION_NAME", "eu-west-1"),
+			s3.ConfigEndpoint:    *awsEndpoint,
+			s3.ConfigAccessKeyID: *awsAccessKeyID,
+			s3.ConfigSecretKey:   *awsSecretKey,
+			s3.ConfigDisableSSL:  shouldDisableSSL,
+			s3.ConfigRegion:      *awsRegionName,
 		}
 	} else if kind == "gcs" {
 		logger.Log("message", "getting provider for Google Cloud Storage")
 		credFile := GetEnvironmentVariable("GOOGLE_CREDENTIALS_FILE", "")
 		logger.Log(credFile)
-		projectID := GetEnvironmentVariable("GOOGLE_PROJECT_ID", "tapico-project-id")
-		logger.Log("google_project_id", projectID)
 
 		config = stow.ConfigMap{
 			gcs.ConfigJSON:      credFile,
-			gcs.ConfigProjectId: projectID,
+			gcs.ConfigProjectId: *googleProjectID,
+			gcs.ConfigEndpoint:  *googleEndpoint,
 		}
 	} else {
 		logger.Log("message", "getting provider for Local Filesystem")
-		configPath, _ := filepath.Abs(GetEnvironmentVariable("CLOUD_FILESYSTEM_PATH", "./dev/data/filesystem/"))
+		configPath, _ := filepath.Abs(*localStoragePath)
 		logger.Log(configPath)
 
 		config = stow.ConfigMap{
 			local.ConfigKeyPath: configPath,
+		}
+	}
+
+	// iterate through the list of config mappings and dump the values for debugging purposes
+	if *verbose {
+		for key, val := range config {
+			//	fmt.Printf("Key: %d, Value: %s\n", key, val)
+			logger.Log("key", key, "value", val)
 		}
 	}
 
@@ -157,12 +208,14 @@ func createCacheBlob(name string, teamID string, fileContents io.Reader, fileSiz
 	item, err := container.Put(name, fileContents, fileSize, nil)
 	if err != nil {
 		logger.Log("message", "failed to save item to cloud storage")
+		logger.Log("error", err)
 		return nil, err
 	}
 
 	logger.Log("message", "attempt to return item")
 	itemMetadata, err := item.Metadata()
 	if err != nil {
+		logger.Log("error", err)
 		return nil, err
 	}
 
@@ -187,8 +240,7 @@ func readCacheBlob(name string, teamID string) (stow.Item, error) {
 	//
 	if container == nil {
 		logger.Log("message", "failed to lookup container reference")
-		logger.Log(err)
-		logger.Log(err.Error())
+		logger.Log("error", err)
 		return nil, nil
 	}
 
@@ -198,7 +250,7 @@ func readCacheBlob(name string, teamID string) (stow.Item, error) {
 	if err != nil {
 		logger.Log("message", "failed to read item from cloud storage")
 		if err == stow.ErrNotFound {
-			logger.Log("message", "file was not found\n")
+			logger.Log("message", "file was not found")
 		}
 		return nil, err
 	}
@@ -206,7 +258,7 @@ func readCacheBlob(name string, teamID string) (stow.Item, error) {
 	logger.Log("message", "attempt to return item")
 	itemMetadata, err := item.Metadata()
 	if err != nil {
-		logger.Log(err)
+		logger.Log("error", err)
 		return nil, err
 	}
 
@@ -232,9 +284,9 @@ func readCacheItem(w http.ResponseWriter, r *http.Request) {
 	span.AddEvent("handling this...", oteltrace.WithAttributes(uk.String(bag.Member("username").Value())))
 
 	artificateID := ""
-	if val, ok := pathParams["artificateID"]; ok {
+	if val, ok := pathParams["artificateId"]; ok {
 		artificateID = val
-		logger.Log("message", fmt.Sprintf("\nreceived the following artificateID=%s", artificateID))
+		logger.Log("message", fmt.Sprintf("received the following artificateID=%s", artificateID))
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 		w.Header().Set("Content-Type", "application/json")
@@ -258,7 +310,7 @@ func readCacheItem(w http.ResponseWriter, r *http.Request) {
 
 	teamID := query.Get("teamID")
 	sanitisedteamID := GetBucketName(teamID)
-	logger.Log("message", fmt.Sprintf("\nreceived the following teamID=%s sanitisedteamID=%s", teamID, sanitisedteamID))
+	logger.Log("message", fmt.Sprintf("received the following teamID=%s sanitisedteamID=%s", teamID, sanitisedteamID))
 
 	// Attempt to return the data from the cloud storage
 	item, err := readCacheBlob(artificateID, sanitisedteamID)
@@ -288,7 +340,7 @@ func readCacheItem(w http.ResponseWriter, r *http.Request) {
 		stdlog.Fatal(err)
 	}
 
-	logger.Log("message", fmt.Sprintf("\ntotal size of buffer=%d", n))
+	logger.Log("message", fmt.Sprintf("total size of buffer=%d", n))
 
 	w.WriteHeader((http.StatusOK))
 	w.Header().Set("Content-Type", "application/octet-stream")
@@ -310,9 +362,9 @@ func writeCacheItem(w http.ResponseWriter, r *http.Request) {
 	span.AddEvent("handling this...", oteltrace.WithAttributes(uk.String(bag.Member("username").Value())))
 
 	artificateID := ""
-	if val, ok := pathParams["artificateID"]; ok {
+	if val, ok := pathParams["artificateId"]; ok {
 		artificateID = val
-		logger.Log("message", fmt.Sprintf("\nreceived the following artificateID=%s", artificateID))
+		logger.Log("message", fmt.Sprintf("received the following artificateID=%s", artificateID))
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 		w.Header().Set("Content-Type", "application/json")
@@ -321,7 +373,7 @@ func writeCacheItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := r.URL.Query()
-	if !query.Has("teamID") {
+	if !query.Has("teamId") {
 		w.WriteHeader(http.StatusPreconditionFailed)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"error":{"message":"teamID is missing","code":"required"}}`))
@@ -369,6 +421,10 @@ func initTracer() *sdktrace.TracerProvider {
 }
 
 func main() {
+	kingpin.Version("0.0.1")
+	kingpin.Parse()
+	fmt.Printf("projectID: %s kind: %s localStoragePath: %s aws.endpoint: %s gogle.endpoint: %s", *googleProjectID, *kind, *localStoragePath, *awsEndpoint, *googleEndpoint)
+
 	// Logfmt is a structured, key=val logging format that is easy to read and parse
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 	// Direct any attempts to use Go's log package to our structured logger
@@ -385,18 +441,22 @@ func main() {
 	}()
 
 	loggingMiddleware := LoggingMiddleware(logger)
+	tokenMiddleware := TokenMiddleware(logger)
 
 	r := mux.NewRouter()
 	r.Use(otelmux.Middleware("tapico-remote-cache"))
+	r.Use(tokenMiddleware)
 
 	// https://api.vercel.com/v8/artifacts/09b4848294e347d8?teamID=team_lMDgmODIeVfSbCQNQPDkX8cF
 	api := r.PathPrefix("/v8").Subrouter()
-	api.HandleFunc("/artifacts/{artificateID}", readCacheItem).Methods(http.MethodGet)
-	api.HandleFunc("/artifacts/{artificateID}", writeCacheItem).Methods(http.MethodPost)
-	api.HandleFunc("/artifacts/{artificateID}", writeCacheItem).Methods(http.MethodPut)
+	api.HandleFunc("/artifacts/{artificateId}", readCacheItem).Methods(http.MethodGet)
+	api.HandleFunc("/artifacts/{artificateId}", writeCacheItem).Methods(http.MethodPost)
+	api.HandleFunc("/artifacts/{artificateId}", writeCacheItem).Methods(http.MethodPut)
 	http.Handle("/", r)
 
 	loggedRouter := loggingMiddleware(r)
+
+	print("Starting the Tapico Turborepo remote cache server")
 
 	// Start server
 	address := os.Getenv("LISTEN_ADDRESS")
@@ -405,12 +465,14 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		fmt.Printf("Started tapico-turborepo-remote-cache server at %s", address)
 	} else {
 		// Default port 8080
 		err := http.ListenAndServe("localhost:8080", loggedRouter)
 		if err != nil {
 			panic(err)
 		}
+		fmt.Printf("Started tapico-turborepo-remote-cache server at %s", "localhost:8080")
 	}
 }
 
@@ -424,6 +486,62 @@ type responseWriter struct {
 
 func wrapResponseWriter(w http.ResponseWriter) *responseWriter {
 	return &responseWriter{ResponseWriter: w}
+}
+
+func isElementExist(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+	return false
+}
+
+func TokenMiddleware(logger log.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		fn := func(res http.ResponseWriter, req *http.Request) {
+			logger.Log("message", "checking if received token is in the list of accepted tokens", "tokens", *allowedTurboTokens)
+
+			// get token from authentication header
+			var isAccepted = false
+
+			authorizationHeader := req.Header.Get("Authorization")
+			if authorizationHeader != "" {
+				logger.Log("message", "get auth header", authorizationHeader)
+
+				// Split up the Authorization header by space to get the part of Bearer
+				parts := strings.Split(authorizationHeader, "Bearer")
+				logger.Log("authHeaderParts", parts)
+				if len(parts) == 2 {
+					token := strings.TrimSpace(parts[1])
+					logger.Log("token", token)
+
+					allowedTokensList := strings.Split(*allowedTurboTokens, ",")
+
+					if isElementExist(allowedTokensList, token) {
+						isAccepted = true
+					} else {
+						logger.Log("message", "the token passed via --turbo-token is missing the received token", "receivedToken", token, "allowedTokens", *allowedTurboTokens)
+					}
+				}
+			}
+
+			// if iAccepted is true we run the next http handler,  if not we return a 403
+			if isAccepted {
+				logger.Log("message", "TURBO_TOKEN token found in allowance token list")
+				next.ServeHTTP(res, req)
+			} else {
+				logger.Log("message", "missing TURBO_TOKEN")
+				res.WriteHeader(http.StatusUnauthorized)
+				res.Header().Set("Content-Type", "application/json")
+				res.Write([]byte(`{"error":{"message":"no permission to access endpoint with given TURBO_TOKEN","code":"permission_denied"}}`))
+				return
+			}
+
+		}
+
+		return http.HandlerFunc(fn)
+	}
 }
 
 func LoggingMiddleware(logger log.Logger) func(http.Handler) http.Handler {

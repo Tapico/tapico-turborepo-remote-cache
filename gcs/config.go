@@ -20,6 +20,7 @@ const (
 	// The service account json blob.
 	ConfigJSON      = "json"
 	ConfigProjectId = "project_id"
+	ConfigEndpoint  = "endpoint"
 	ConfigScopes    = "scopes"
 )
 
