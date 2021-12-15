@@ -40,36 +40,36 @@ var logger log.Logger
 
 var (
 	app     = kingpin.New("tapico-turborepo-remote-cache", "A tool to work with Vercel Turborepo to upload/retrieve cache artefacts to/from popular cloud providers")
-	verbose = kingpin.Flag("verbose", "Verbose mode.").Short('v').Bool()
-	kind    = kingpin.Flag("kind", "Kind of storage provider to use (s3, gcp, local). ($CLOUD_PROVIDER_KIND)").Default("s3").Envar("CLOUD_PROVIDER_KIND").String()
+	verbose = app.Flag("verbose", "Verbose mode.").Short('v').Bool()
+	kind    = app.Flag("kind", "Kind of storage provider to use (s3, gcp, local). ($CLOUD_PROVIDER_KIND)").Default("s3").Envar("CLOUD_PROVIDER_KIND").String()
 
-	useSecure = kingpin.Flag("secure", "Enable secure access (or HTTPs endpoints).").Envar("CLOUD_SECURE").Bool()
+	useSecure = app.Flag("secure", "Enable secure access (or HTTPs endpoints).").Envar("CLOUD_SECURE").Bool()
 
-	allowedTurboTokens = kingpin.Flag("turbo-token", "The comma separated list of TURBO_TOKEN that the server should accept ($TURBO_TOKEN)").Envar("TURBO_TOKEN").Required().String()
+	allowedTurboTokens = app.Flag("turbo-token", "The comma separated list of TURBO_TOKEN that the server should accept ($TURBO_TOKEN)").Envar("TURBO_TOKEN").Required().String()
 
-	googleEndpoint = kingpin.Flag("google.endpoint", "API Endpoint of cloud storage provide to use ($GOOGLE_ENDPOINT)").Default("http://127.0.0.1:9000").Envar("GOOGLE_ENDPOINT").String()
+	googleEndpoint = app.Flag("google.endpoint", "API Endpoint of cloud storage provide to use ($GOOGLE_ENDPOINT)").Default("http://127.0.0.1:9000").Envar("GOOGLE_ENDPOINT").String()
 
-	googleProjectID = kingpin.Flag(
+	googleProjectID = app.Flag(
 		"google.project-id", "The project id relevant for Google Cloud Storage ($GOOGLE_PROJECT_ID).",
 	).Envar("GOOGLE_PROJECT_ID").String()
 
-	localStoragePath = kingpin.Flag(
+	localStoragePath = app.Flag(
 		"local.project-id", "The relative path to storage the cache artefacts when 'local' is enabled ($CLOUD_FILESYSTEM_PATH).",
 	).Envar("CLOUD_FILESYSTEM_PATH").String()
 
-	awsEndpoint = kingpin.Flag(
+	awsEndpoint = app.Flag(
 		"s3.endpoint", "The endpoint to use to connect to a Amazon S3 compatible cloud storage provider ($AWS_ENDPOINT).",
 	).Envar("AWS_ENDPOINT").String()
 
-	awsAccessKeyID = kingpin.Flag(
+	awsAccessKeyID = app.Flag(
 		"s3.accessKeyId", "The Amazon S3 Access Key Id ($AWS_ACCESS_KEY_ID).",
 	).Envar("AWS_ACCESS_KEY_ID").String()
 
-	awsSecretKey = kingpin.Flag(
+	awsSecretKey = app.Flag(
 		"s3.secretKey", "The Amazon S3 secret key ($AWS_SECRET_ACCESS_KEY).",
 	).Envar("AWS_SECRET_ACCESS_KEY").String()
 
-	awsRegionName = kingpin.Flag(
+	awsRegionName = app.Flag(
 		"s3.region", "The Amazon S3 region($AWS_S3_REGION_NAME).",
 	).Envar("AWS_S3_REGION_NAME").String()
 )
@@ -422,7 +422,7 @@ func initTracer() *sdktrace.TracerProvider {
 
 func main() {
 	kingpin.Version("0.0.1")
-	kingpin.Parse()
+	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	fmt.Printf("projectID: %s kind: %s localStoragePath: %s aws.endpoint: %s google.endpoint: %s", *googleProjectID, *kind, *localStoragePath, *awsEndpoint, *googleEndpoint)
 
