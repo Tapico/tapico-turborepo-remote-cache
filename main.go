@@ -43,7 +43,7 @@ var (
 	verbose = kingpin.Flag("verbose", "Verbose mode.").Short('v').Bool()
 	kind    = kingpin.Flag("kind", "Kind of storage provider to use (s3, gcp, local). ($CLOUD_PROVIDER_KIND)").Default("s3").Envar("CLOUD_PROVIDER_KIND").String()
 
-	useSecure = kingpin.Flag("secure", "Enable secure access (or HTTPs endpoints).").Bool()
+	useSecure = kingpin.Flag("secure", "Enable secure access (or HTTPs endpoints).").Envar("CLOUD_SECURE").Bool()
 
 	allowedTurboTokens = kingpin.Flag("turbo-token", "The comma separated list of TURBO_TOKEN that the server should accept ($TURBO_TOKEN)").Envar("TURBO_TOKEN").Required().String()
 
