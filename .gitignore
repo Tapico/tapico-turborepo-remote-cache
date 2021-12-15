@@ -25,3 +25,5 @@ tapico-turborepo-remote-cache
 
 # Development data
 dev/data/
+dist
+.env
