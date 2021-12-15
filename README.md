@@ -18,8 +18,10 @@ on a Amazon S3 compatible cloud storage provider, it will start a HTTP server on
 ```bash
 ./tapico-turborepo-remote-cache --kind="s3" --s3.endpoint="http://127.0.0.1:9000" --s3.accessKeyId="minio" --s3.secretKey="miniosecretkey" --s3.region="eu-west-1" --turbo-token="your-turbo-token"
 ```
-
 *Note*: The above example can be used to test against the Minio instance of the `docker-compose.yml` file found in the `dev`-directory.
+
+At this time the server doesn't support running over HTTPS, you might want to consider
+using a load balancer to expose the server over HTTPS to the internet.
 
 ### Configuration
 
@@ -84,6 +86,11 @@ After this you should be able to run `turbo` e.g. `turbo run build --force` to
 force the generating of new cache artefacts and upload it to our server.
 
 Alternatively, you can also use the arguments `--api="http://127.0.0.1:8080" --token="xxxxxxxxxxxxxxxxx"`
+
+The `teamId` in `.tubrbo/config.json` or the `--team`-argument for `turbo` CLI is
+used to generate a bucket in the cloud storage provider, as the id might be an
+invalid name the team identifier a MD5 hash is generated and used as the bucket name.
+
 ## Developing
 
 In the `dev` directory you can find a docker compose file which starts, a Minio
@@ -100,6 +107,14 @@ export STORAGE_EMULATOR_HOST=http://localhost:9100
 
 The `STORAGE_EMULATOR_HOST` is used to activate a special code path in
 the Google Cloud Storage library for Go.
+
+*Tip*: If the Remote Cache is not working as expected, you can use an application
+like ProxyMan and force `turbo` CLI the application's HTTP proxy so you can get
+insight in the outgoing HTTP requests. To do this, you can run `turbo` the following
+way `HTTP_PROXY=192.168.1.98:9090 turbo run build`.
+
+You might need to use `HTTPS_PROXY` instead when the API server location is running
+over HTTPS instead of HTTP.
 
 ## Acknowledgments
 
