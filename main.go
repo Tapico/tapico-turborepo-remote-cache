@@ -298,7 +298,7 @@ func readCacheItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := r.URL.Query()
-	if !query.Has("teamID") {
+	if !query.Has("teamId") {
 		w.WriteHeader(http.StatusPreconditionFailed)
 		w.Header().Set("Content-Type", "application/json")
 		_, err := w.Write([]byte(`{"error":{"message":"teamID is missing","code":"required"}}`))
@@ -308,7 +308,7 @@ func readCacheItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teamID := query.Get("teamID")
+	teamID := query.Get("teamId")
 	sanitisedteamID := GetBucketName(teamID)
 	logger.Log("message", fmt.Sprintf("received the following teamID=%s sanitisedteamID=%s", teamID, sanitisedteamID))
 
@@ -333,21 +333,20 @@ func readCacheItem(w http.ResponseWriter, r *http.Request) {
 
 	// Attempt to read the file contents of the artificats
 	defer fileReference.Close()
-	fileBuffer := make([]byte, 4)
-	n, err := fileReference.Read(fileBuffer)
-	if err != nil {
-		logger.Log(err)
-		stdlog.Fatal(err)
-	}
-
-	logger.Log("message", fmt.Sprintf("total size of buffer=%d", n))
 
 	w.WriteHeader((http.StatusOK))
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Headers", "Authorization, Accept, Content-Type")
 	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET, POST, PUT, PATCH, DELETE")
-	w.Write(fileBuffer)
+
+	n, err := io.Copy(w, fileReference)
+	if err != nil {
+		logger.Log(err)
+		stdlog.Fatal(err)
+	}
+
+	logger.Log("message", fmt.Sprintf("total size of buffer=%d", n))
 }
 
 func writeCacheItem(w http.ResponseWriter, r *http.Request) {
@@ -380,7 +379,7 @@ func writeCacheItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teamID := query.Get("teamID")
+	teamID := query.Get("teamId")
 	sanitisedteamID := GetBucketName(teamID)
 	logger.Log("message", "received the following", "teamID", teamID, "sanitisedteamID", sanitisedteamID)
 
