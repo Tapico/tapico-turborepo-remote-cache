@@ -11,7 +11,7 @@ We encourage and welcome any and all feedback from the community.
 
 ## Things to know
 
-The goal of this project is to be compatable with the [Turborepo Remote Cache](https://turborepo.org/docs/features/remote-caching) so any changes need to be compliant with that spec
+The goal of this project is to be compatible with the [Turborepo Remote Cache](https://turborepo.org/docs/features/remote-caching) so any changes need to be compliant with the `turbo` CLI.
 
 ## Discord
 
