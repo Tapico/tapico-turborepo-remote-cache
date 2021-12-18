@@ -75,6 +75,8 @@ to ensure it's pointing to our server for the API server. Currently, any of the
 login functionality is not implemented. You can adapt the `.turbo/config.json`-file
 in the root of your mono repo.
 
+NOTE: You **don't** have to run `turbo login` step.
+
 ```json
 {
   "teamId": "team_blah",
@@ -82,12 +84,18 @@ in the root of your mono repo.
 }
 ```
 
+NOTE: `teamId` must start with "team_".
+
 After this you should be able to run `turbo` e.g. `turbo run build --force` to
 force the generating of new cache artefacts and upload it to our server.
 
 Alternatively, you can also use the arguments `--api="http://127.0.0.1:8080" --token="xxxxxxxxxxxxxxxxx"`
 
-The `teamId` in `.tubrbo/config.json` or the `--team`-argument for `turbo` CLI is
+Token can also be specified as enviroment variable `TURBO_TOKEN=xxxxx`, for example: `TURBO_TOKEN=xxxx turbo run build`
+
+NOTE: CLI argument `--team` is not supported, please only use `teamId` from `.turbo/config.json`.
+
+The `teamId` in `.turbo/config.json` is
 used to generate a bucket in the cloud storage provider, as the id might be an
 invalid name the team identifier a MD5 hash is generated and used as the bucket name.
 
