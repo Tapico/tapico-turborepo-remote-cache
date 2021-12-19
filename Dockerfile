@@ -17,4 +17,7 @@ RUN go build
 
 RUN go install
 
+ENV PORT=8080
+EXPOSE 8080
+
 ENTRYPOINT ["tapico-turborepo-remote-cache"]
