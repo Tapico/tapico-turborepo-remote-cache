@@ -23,6 +23,8 @@ on a Amazon S3 compatible cloud storage provider, it will start a HTTP server on
 At this time the server doesn't support running over HTTPS, you might want to consider
 using a load balancer to expose the server over HTTPS to the internet.
 
+You can download [binaries](https://github.com/Tapico/tapico-turborepo-remote-cache/releases) of the applications via the Releases page, and pre-build docker images are available in the [`tapico-turborepo-remote-cache` section in Packages](https://github.com/orgs/Tapico/packages/container/package/tapico-turborepo-remote-cache) section.
+
 ### Configuration
 
 The server supports three kind of cloud storage, which are `s3`, `gcs` and `local`,
