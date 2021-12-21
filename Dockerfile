@@ -1,23 +1,25 @@
-FROM golang
-
-RUN useradd -m tapico
+FROM golang as builder
 
 RUN mkdir /build
-
-RUN chown -Rvf tapico: /build
-
-USER tapico
-
 
 WORKDIR /build
 
 COPY . .
 
-RUN go build
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o tapico-turborepo-remote-cache .
 
-RUN go install
+
+FROM scratch
+
+COPY --from=builder /build/tapico-turborepo-remote-cache /app/
+
+WORKDIR /app
 
 ENV PORT=8080
-EXPOSE 8080
+ENV LISTEN_ADDRESS=0.0.0.0:${PORT}
 
-ENTRYPOINT ["tapico-turborepo-remote-cache"]
+EXPOSE $PORT
+
+ENV PATH=$PATH:/app
+
+ENTRYPOINT ["./tapico-turborepo-remote-cache"]
