@@ -41,17 +41,25 @@ var logger log.Logger
 var (
 	app     = kingpin.New("tapico-turborepo-remote-cache", "A tool to work with Vercel Turborepo to upload/retrieve cache artefacts to/from popular cloud providers")
 	verbose = app.Flag("verbose", "Verbose mode.").Short('v').Bool()
-	kind    = app.Flag("kind", "Kind of storage provider to use (s3, gcp, local). ($CLOUD_PROVIDER_KIND)").Default("s3").Envar("CLOUD_PROVIDER_KIND").String()
+	kind    = app.Flag("kind", "Kind of storage provider to use (s3, gcs, local). ($CLOUD_PROVIDER_KIND)").Default("s3").Envar("CLOUD_PROVIDER_KIND").String()
 
 	useSecure = app.Flag("secure", "Enable secure access (or HTTPs endpoints).").Envar("CLOUD_SECURE").Bool()
 
+	bucketName = app.Flag("bucket", "The name of the bucket ($BUCKET_NAME)").Envar("BUCKET_NAME").Default("tapico-remote-cache").String()
+
+	enableBucketPerTeam = app.Flag("enable-bucket-per-team", "The name of the bucket").Bool()
+
 	allowedTurboTokens = app.Flag("turbo-token", "The comma separated list of TURBO_TOKEN that the server should accept ($TURBO_TOKEN)").Envar("TURBO_TOKEN").Required().String()
 
-	googleEndpoint = app.Flag("google.endpoint", "API Endpoint of cloud storage provide to use ($GOOGLE_ENDPOINT)").Default("http://127.0.0.1:9000").Envar("GOOGLE_ENDPOINT").String()
+	googleEndpoint = app.Flag("google.endpoint", "API Endpoint of cloud storage provide to use ($GOOGLE_ENDPOINT)").Envar("GOOGLE_ENDPOINT").String()
 
 	googleProjectID = app.Flag(
 		"google.project-id", "The project id relevant for Google Cloud Storage ($GOOGLE_PROJECT_ID).",
 	).Envar("GOOGLE_PROJECT_ID").String()
+
+	googleCredentialsJson = app.Flag(
+		"google.credentials", "The path to the credentials file ($GOOGLE_APPLICATION_CREDENTIALS).",
+	).Envar("GOOGLE_APPLICATION_CREDENTIALS").String()
 
 	localStoragePath = app.Flag(
 		"local.project-id", "The relative path to storage the cache artefacts when 'local' is enabled ($CLOUD_FILESYSTEM_PATH).",
@@ -75,8 +83,12 @@ var (
 )
 
 func GetBucketName(name string) string {
-	hash := md5.Sum([]byte(name))
-	return hex.EncodeToString(hash[:])
+	if *enableBucketPerTeam {
+		hash := md5.Sum([]byte(name))
+		return hex.EncodeToString(hash[:])
+	}
+
+	return name
 }
 
 func GetEnvironmentVariable(name string, defaultValue string) string {
@@ -89,7 +101,7 @@ func GetEnvironmentVariable(name string, defaultValue string) string {
 }
 
 func getProviderConfig(kind string) (stow.ConfigMap, error) {
-	logger.Log("message", "getProviderConfig()")
+	logger.Log("message", "getProviderConfig()", "kind", kind)
 
 	var config stow.ConfigMap
 
@@ -109,14 +121,51 @@ func getProviderConfig(kind string) (stow.ConfigMap, error) {
 		}
 	} else if kind == "gcs" {
 		logger.Log("message", "getting provider for Google Cloud Storage")
-		credFile := GetEnvironmentVariable("GOOGLE_CREDENTIALS_FILE", "")
-		logger.Log(credFile)
+
+		var googleCredentialsContents []byte
+
+		// check if the file exist that stored in the credentials environment file
+		if _, err := os.Stat(*googleCredentialsJson); err == nil {
+			fileContents, err := os.ReadFile(*googleCredentialsJson)
+			if err != nil {
+				googleCredentialsContents = fileContents
+			}
+		} else {
+			googleCredentialsContents = []byte(*googleCredentialsJson)
+		}
+
+		// // check if a filee xists on the given path
+		// fileInfo, err := os.Stat(*googleCredentialsJson)
+		// if err != nil {
+		// 	logger.Log("message", err)
+		// } else {
+		// 	logger.Log("fileInfo", fileInfo.Name())
+		// }
+
+		// fileContents, err := os.ReadFile(*googleCredentialsJson)
+		// if errors.Is(err, os.ErrNotExist) {
+		// 	logger.Log("message", "the file does not exist")
+		// 	googleCredentialsContents = []byte(*googleCredentialsJson)
+		// } else if err != nil {
+		// 	logger.Log("message", "the file does exist", "error", err)
+		// 	googleCredentialsContents = []byte(*googleCredentialsJson)
+		// } else {
+		// 	logger.Log("message", "no file occurred")
+		// 	googleCredentialsContents = fileContents
+		// }
+
+		logger.Log("contents", string(googleCredentialsContents))
 
 		config = stow.ConfigMap{
-			gcs.ConfigJSON:      credFile,
 			gcs.ConfigProjectId: *googleProjectID,
-			gcs.ConfigEndpoint:  *googleEndpoint,
+			gcs.ConfigJSON:      string(googleCredentialsContents),
 		}
+
+		if *googleEndpoint != "" {
+			logger.Log("message", "Changing the Google  Storage endpoint to", "endpoint=", *googleEndpoint)
+			config[gcs.ConfigEndpoint] = *googleEndpoint
+		}
+
 	} else {
 		logger.Log("message", "getting provider for Local Filesystem")
 		configPath, _ := filepath.Abs(*localStoragePath)
@@ -139,32 +188,39 @@ func getProviderConfig(kind string) (stow.ConfigMap, error) {
 }
 
 func GetContainerByName(name string) (stow.Container, error) {
-	logger.Log("message", fmt.Sprintf(`GetContainerByName() name=%s`, name))
-
-	availableCloudProviders := stow.Kinds()
-	logger.Log("message", fmt.Sprintf(`GetContainerByName() availableCloudProviders=%s`, availableCloudProviders))
-
-	kind := GetEnvironmentVariable("CLOUD_PROVIDER_KIND", "s3")
-	config, err := getProviderConfig(kind)
+	config, err := getProviderConfig(*kind)
 	if err != nil {
-		logger.Log("message", "failed to get container config")
-		logger.Log(err.Error())
 		return nil, err
 	}
 
 	// connect
-	location, err := stow.Dial(kind, config)
+	location, err := stow.Dial(*kind, config)
 	if err != nil {
-		logger.Log("message", "failed to get container instance")
-		logger.Log(err.Error())
 		return nil, err
+	}
+
+	containers, item, err := location.Containers("", "", 100)
+	logger.Log("item", item)
+	for _, v := range containers {
+		logger.Log("message", "get container name", "value", v.Name())
+	}
+
+	if err != nil {
+		logger.Log("error", err)
+	} else {
+		for _, v := range containers {
+			logger.Log("message", "list of containers", "container", v)
+		}
 	}
 
 	var container stow.Container
 
-	receivedContainer, err := location.Container(name)
+	logger.Log("message", "the name of the bucket is", "bucket", bucketName)
+
+	receivedContainer, err := location.Container("tapico-remote-cache")
 	if err != nil {
 		logger.Log("message", "failed to fetch existing container with the requested name")
+		logger.Log("error", err)
 	} else {
 		logger.Log("message", "found existing container")
 		container = receivedContainer
@@ -172,7 +228,7 @@ func GetContainerByName(name string) (stow.Container, error) {
 
 	if receivedContainer == nil {
 		logger.Log("message", "failed to find an existing container")
-		createdContainer, err := location.CreateContainer(name)
+		createdContainer, err := location.CreateContainer(*bucketName)
 		if err != nil {
 			logger.Log("message", "failed to create container")
 			logger.Log(err)
@@ -189,47 +245,58 @@ func GetContainerByName(name string) (stow.Container, error) {
 	return container, nil
 }
 
-func createCacheBlob(name string, teamID string, fileContents io.Reader, fileSize int64) (stow.Item, error) {
+func createCacheBlob(name string, teamID string, fileContents io.Reader, fileSize int64) (stow.Item, string, error) {
 	logger.Log("message", "createCacheBlob() called")
 
-	container, err := GetContainerByName(teamID)
+	bucketName := GetBucketName(teamID)
+
+	container, err := GetContainerByName(bucketName)
 	if err != nil {
-		return nil, err
+		logger.Log("failed to get container by name", bucketName)
+		return nil, "", err
 	}
 
 	//
 	if container == nil {
 		logger.Log("message", "failed to lookup container reference")
-		return nil, nil
+		return nil, "", nil
 	}
+
+	fullArtefactPath := fmt.Sprintf("%s/%s", teamID, name)
+	if *enableBucketPerTeam {
+		fullArtefactPath = fmt.Sprintf("%s", name)
+	}
+	logger.Log("message", "The full path where to store the artefact item", "path", fullArtefactPath)
 
 	//
 	logger.Log("message", "attempt to save item to cloud storage")
-	item, err := container.Put(name, fileContents, fileSize, nil)
+	item, err := container.Put(fullArtefactPath, fileContents, fileSize, nil)
 	if err != nil {
 		logger.Log("message", "failed to save item to cloud storage")
 		logger.Log("error", err)
-		return nil, err
+		return nil, "", err
 	}
 
 	logger.Log("message", "attempt to return item")
 	itemMetadata, err := item.Metadata()
 	if err != nil {
 		logger.Log("error", err)
-		return nil, err
+		return nil, "", err
 	}
 
 	for value, name := range itemMetadata {
 		logger.Log("name", name, "value", value)
 	}
 
-	return item, nil
+	return item, fullArtefactPath, nil
 }
 
 func readCacheBlob(name string, teamID string) (stow.Item, error) {
 	logger.Log("message", "readCacheBlob() called")
 
-	container, err := GetContainerByName(teamID)
+	bucketName := GetBucketName(teamID)
+
+	container, err := GetContainerByName(bucketName)
 	if err != nil {
 		logger.Log("message", "failed to get container api instance")
 		logger.Log(err)
@@ -245,8 +312,15 @@ func readCacheBlob(name string, teamID string) (stow.Item, error) {
 	}
 
 	//
+	fullArtefactPath := fmt.Sprintf("%s/%s", teamID, name)
+	if *enableBucketPerTeam {
+		fullArtefactPath = fmt.Sprintf("%s", name)
+	}
+	logger.Log("message", "The full path where to store the artefact item", "path", fullArtefactPath)
+
+	//
 	logger.Log("message", "attempt to read item from cloud storage")
-	item, err := container.Item(name)
+	item, err := container.Item(fullArtefactPath)
 	if err != nil {
 		logger.Log("message", "failed to read item from cloud storage")
 		if err == stow.ErrNotFound {
@@ -298,17 +372,21 @@ func readCacheItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := r.URL.Query()
-	if !query.Has("teamId") {
+	if !query.Has("teamId") || !query.Has("slug") {
 		w.WriteHeader(http.StatusPreconditionFailed)
 		w.Header().Set("Content-Type", "application/json")
-		_, err := w.Write([]byte(`{"error":{"message":"teamID is missing","code":"required"}}`))
+		_, err := w.Write([]byte(`{"error":{"message":"teamID or slug is missing","code":"required"}}`))
 		if err != nil {
 			logger.Log("message", err)
 		}
 		return
 	}
 
+	// If teamId and slug are defined, we use slug over teamId
 	teamID := query.Get("teamId")
+	if query.Has("slug") {
+		teamID = query.Get("slug")
+	}
 	sanitisedteamID := GetBucketName(teamID)
 	logger.Log("message", fmt.Sprintf("received the following teamID=%s sanitisedteamID=%s", teamID, sanitisedteamID))
 
@@ -372,18 +450,22 @@ func writeCacheItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := r.URL.Query()
-	if !query.Has("teamId") {
+	if !query.Has("teamId") || !query.Has("slug") {
 		w.WriteHeader(http.StatusPreconditionFailed)
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"error":{"message":"teamID is missing","code":"required"}}`))
+		w.Write([]byte(`{"error":{"message":"teamID or slug is missing","code":"required"}}`))
 		return
 	}
 
+	// If teamId and slug are defined, we use slug over teamId
 	teamID := query.Get("teamId")
+	if query.Has("slug") {
+		teamID = query.Get("slug")
+	}
 	sanitisedteamID := GetBucketName(teamID)
 	logger.Log("message", "received the following", "teamID", teamID, "sanitisedteamID", sanitisedteamID)
 
-	item, err := createCacheBlob(artificateID, sanitisedteamID, r.Body, r.ContentLength)
+	_, path, err := createCacheBlob(artificateID, sanitisedteamID, r.Body, r.ContentLength)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Header().Set("Content-Type", "application/json")
@@ -391,12 +473,9 @@ func writeCacheItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Retrieve the url of the uploaded items
-	cacheItemURL := item.URL()
-
 	w.WriteHeader(http.StatusAccepted)
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(fmt.Sprintf(`{"urls": ["%s/%s"]}`, teamID, cacheItemURL.Path)))
+	w.Write([]byte(fmt.Sprintf(`{"urls": ["%s"]}`, path)))
 }
 
 func initTracer() *sdktrace.TracerProvider {
@@ -423,7 +502,7 @@ func main() {
 	kingpin.Version("0.0.1")
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
-	fmt.Printf("projectID: %s kind: %s localStoragePath: %s aws.endpoint: %s google.endpoint: %s", *googleProjectID, *kind, *localStoragePath, *awsEndpoint, *googleEndpoint)
+	fmt.Printf("projectID: %s kind: %s localStoragePath: %s aws.endpoint: %s google.endpoint: %s google.credentialsJsonPath: %s", *googleProjectID, *kind, *localStoragePath, *awsEndpoint, *googleEndpoint, *googleCredentialsJson)
 
 	// Logfmt is a structured, key=val logging format that is easy to read and parse
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
@@ -511,7 +590,7 @@ func TokenMiddleware(logger log.Logger) func(http.Handler) http.Handler {
 
 				// Split up the Authorization header by space to get the part of Bearer
 				parts := strings.Split(authorizationHeader, "Bearer")
-				logger.Log("authHeaderParts", parts)
+				logger.Log("authHeaderParts", strings.Join(parts, ","))
 				if len(parts) == 2 {
 					token := strings.TrimSpace(parts[1])
 					logger.Log("token", token)

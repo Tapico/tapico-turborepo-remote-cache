@@ -36,6 +36,7 @@ func (l *Location) CreateContainer(containerName string) (stow.Container, error)
 	print(containerName)
 
 	projId, _ := l.config.Config(ConfigProjectId)
+	print("projId=", projId)
 	bucket := l.client.Bucket(containerName)
 	if err := bucket.Create(l.ctx, projId, nil); err != nil {
 		if e, ok := err.(*googleapi.Error); ok && e.Code == 409 {
@@ -86,17 +87,14 @@ func (l *Location) Containers(prefix string, cursor string, count int) ([]stow.C
 // Container retrieves a stow.Container based on its name which must be
 // exact.
 func (l *Location) Container(id string) (stow.Container, error) {
-	print("get the container for name")
-	print(id)
-
 	attrs, err := l.client.Bucket(id).Attrs(l.ctx)
 	if err != nil {
+		print(err)
 		if err == storage.ErrBucketNotExist {
 			return nil, stow.ErrNotFound
 		}
 
-		print("failed to check container by id")
-		print(err)
+		print("\nfailed to check container by id", err)
 		return nil, err
 	}
 
@@ -106,6 +104,7 @@ func (l *Location) Container(id string) (stow.Container, error) {
 		ctx:    l.ctx,
 	}
 
+	print("\nreturning container instance")
 	return c, nil
 }
 

@@ -80,29 +80,37 @@ func newGoogleStorageClient(config stow.Config) (context.Context, *storage.Clien
 		scopes = strings.Split(s, ",")
 	}
 
+	endpoint := ""
+	if s, ok := config.Config(ConfigEndpoint); ok && s != "" {
+		endpoint = s
+	}
+	print("\nendpoint=", endpoint)
+
 	ctx := context.Background()
 	var creds *google.Credentials
 	var err error
 	if json != "" {
 		creds, err = google.CredentialsFromJSON(ctx, []byte(json), scopes...)
 		if err != nil {
-			print("an error returned with credentials")
+			print("\nan error returned with credentials")
+			print(err.Error())
 			return nil, nil, err
 		}
 	} else {
-		print("attempting to use default credentials for google cloud storage")
+		print("\nattempting to use default credentials for google cloud storage")
 		creds, err = google.FindDefaultCredentials(ctx, scopes...)
 		if err != nil {
+			print("\nfailed to fetch default credentials")
 			return nil, nil, err
 		}
 	}
-	print("credentials", creds)
 
-	//client, err := storage.NewClient(ctx, option.WithCredentials(creds))
-	client, err := storage.NewClient(ctx, option.WithEndpoint("http://localhost:9100"))
+	client, err := storage.NewClient(ctx, option.WithCredentials(creds))
 	if err != nil {
-		print("error while creating storage client")
+		print("\nerror while creating storage client")
 		return nil, nil, err
 	}
+
+	print("\ncontext and client has been created")
 	return ctx, client, nil
 }
