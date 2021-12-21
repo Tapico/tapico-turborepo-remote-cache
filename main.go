@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	stdlog "log"
@@ -83,15 +82,13 @@ var (
 	).Envar("AWS_S3_REGION_NAME").String()
 )
 
-/**
- */
 func GetBucketName(name string) string {
 	if *enableBucketPerTeam {
 		hash := md5.Sum([]byte(name))
 		return hex.EncodeToString(hash[:])
-	} else {
-		return name
 	}
+
+	return name
 }
 
 func GetEnvironmentVariable(name string, defaultValue string) string {
@@ -127,13 +124,37 @@ func getProviderConfig(kind string) (stow.ConfigMap, error) {
 
 		var googleCredentialsContents []byte
 
-		// check if a filee xists on the given path
-		fileContents, err := os.ReadFile(*googleCredentialsJson)
-		if errors.Is(err, os.ErrNotExist) {
-			googleCredentialsContents = []byte(*googleCredentialsJson)
+		// check if the file exist that stored in the credentials environment file
+		if _, err := os.Stat(*googleCredentialsJson); err == nil {
+			fileContents, err := os.ReadFile(*googleCredentialsJson)
+			if err != nil {
+				googleCredentialsContents = fileContents
+			}
 		} else {
-			googleCredentialsContents = fileContents
+			googleCredentialsContents = []byte(*googleCredentialsJson)
 		}
+
+		// // check if a filee xists on the given path
+		// fileInfo, err := os.Stat(*googleCredentialsJson)
+		// if err != nil {
+		// 	logger.Log("message", err)
+		// } else {
+		// 	logger.Log("fileInfo", fileInfo.Name())
+		// }
+
+		// fileContents, err := os.ReadFile(*googleCredentialsJson)
+		// if errors.Is(err, os.ErrNotExist) {
+		// 	logger.Log("message", "the file does not exist")
+		// 	googleCredentialsContents = []byte(*googleCredentialsJson)
+		// } else if err != nil {
+		// 	logger.Log("message", "the file does exist", "error", err)
+		// 	googleCredentialsContents = []byte(*googleCredentialsJson)
+		// } else {
+		// 	logger.Log("message", "no file occurred")
+		// 	googleCredentialsContents = fileContents
+		// }
+
+		logger.Log("contents", string(googleCredentialsContents))
 
 		config = stow.ConfigMap{
 			gcs.ConfigProjectId: *googleProjectID,
