@@ -372,7 +372,7 @@ func readCacheItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := r.URL.Query()
-	if !query.Has("teamId") || !query.Has("slug") {
+	if !query.Has("teamId") || (!query.Has("slug") && !query.Has("teamId")) {
 		w.WriteHeader(http.StatusPreconditionFailed)
 		w.Header().Set("Content-Type", "application/json")
 		_, err := w.Write([]byte(`{"error":{"message":"teamID or slug is missing","code":"required"}}`))
@@ -450,7 +450,7 @@ func writeCacheItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := r.URL.Query()
-	if !query.Has("teamId") || !query.Has("slug") {
+	if !query.Has("teamId") || (!query.Has("slug") && !query.Has("teamId")) {
 		w.WriteHeader(http.StatusPreconditionFailed)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"error":{"message":"teamID or slug is missing","code":"required"}}`))
