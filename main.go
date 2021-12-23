@@ -217,7 +217,7 @@ func GetContainerByName(name string) (stow.Container, error) {
 
 	logger.Log("message", "the name of the bucket is", "bucket", bucketName)
 
-	receivedContainer, err := location.Container("tapico-remote-cache")
+	receivedContainer, err := location.Container(*bucketName)
 	if err != nil {
 		logger.Log("message", "failed to fetch existing container with the requested name")
 		logger.Log("error", err)
