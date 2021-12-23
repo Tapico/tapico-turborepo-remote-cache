@@ -57,7 +57,7 @@ var (
 		"google.project-id", "The project id relevant for Google Cloud Storage ($GOOGLE_PROJECT_ID).",
 	).Envar("GOOGLE_PROJECT_ID").String()
 
-	googleCredentialsJson = app.Flag(
+	googleCredentialsJSON = app.Flag(
 		"google.credentials", "The path to the credentials file ($GOOGLE_APPLICATION_CREDENTIALS).",
 	).Envar("GOOGLE_APPLICATION_CREDENTIALS").String()
 
@@ -91,15 +91,6 @@ func GetBucketName(name string) string {
 	return name
 }
 
-func GetEnvironmentVariable(name string, defaultValue string) string {
-	value, ok := os.LookupEnv(name)
-	if !ok {
-		return defaultValue
-	}
-
-	return value
-}
-
 func getProviderConfig(kind string) (stow.ConfigMap, error) {
 	logger.Log("message", "getProviderConfig()", "kind", kind)
 
@@ -125,30 +116,30 @@ func getProviderConfig(kind string) (stow.ConfigMap, error) {
 		var googleCredentialsContents []byte
 
 		// check if the file exist that stored in the credentials environment file
-		if _, err := os.Stat(*googleCredentialsJson); err == nil {
-			fileContents, err := os.ReadFile(*googleCredentialsJson)
+		if _, err := os.Stat(*googleCredentialsJSON); err == nil {
+			fileContents, err := os.ReadFile(*googleCredentialsJSON)
 			if err != nil {
 				googleCredentialsContents = fileContents
 			}
 		} else {
-			googleCredentialsContents = []byte(*googleCredentialsJson)
+			googleCredentialsContents = []byte(*googleCredentialsJSON)
 		}
 
 		// // check if a filee xists on the given path
-		// fileInfo, err := os.Stat(*googleCredentialsJson)
+		// fileInfo, err := os.Stat(*googleCredentialsJSON)
 		// if err != nil {
 		// 	logger.Log("message", err)
 		// } else {
 		// 	logger.Log("fileInfo", fileInfo.Name())
 		// }
 
-		// fileContents, err := os.ReadFile(*googleCredentialsJson)
+		// fileContents, err := os.ReadFile(*googleCredentialsJSON)
 		// if errors.Is(err, os.ErrNotExist) {
 		// 	logger.Log("message", "the file does not exist")
-		// 	googleCredentialsContents = []byte(*googleCredentialsJson)
+		// 	googleCredentialsContents = []byte(*googleCredentialsJSON)
 		// } else if err != nil {
 		// 	logger.Log("message", "the file does exist", "error", err)
-		// 	googleCredentialsContents = []byte(*googleCredentialsJson)
+		// 	googleCredentialsContents = []byte(*googleCredentialsJSON)
 		// } else {
 		// 	logger.Log("message", "no file occurred")
 		// 	googleCredentialsContents = fileContents
@@ -262,9 +253,9 @@ func createCacheBlob(name string, teamID string, fileContents io.Reader, fileSiz
 		return nil, "", nil
 	}
 
-	fullArtefactPath := fmt.Sprintf("%s/%s", teamID, name)
+	fullArtefactPath := fmt.Sprintf("%s/%s", teamID, name) //nolint
 	if *enableBucketPerTeam {
-		fullArtefactPath = fmt.Sprintf("%s", name)
+		fullArtefactPath = fmt.Sprintf("%s", name) //nolint
 	}
 	logger.Log("message", "The full path where to store the artefact item", "path", fullArtefactPath)
 
@@ -314,7 +305,7 @@ func readCacheBlob(name string, teamID string) (stow.Item, error) {
 	//
 	fullArtefactPath := fmt.Sprintf("%s/%s", teamID, name)
 	if *enableBucketPerTeam {
-		fullArtefactPath = fmt.Sprintf("%s", name)
+		fullArtefactPath = fmt.Sprintf("%s", name) //nolint
 	}
 	logger.Log("message", "The full path where to store the artefact item", "path", fullArtefactPath)
 
@@ -375,6 +366,7 @@ func readCacheItem(w http.ResponseWriter, r *http.Request) {
 	if !query.Has("teamId") || (!query.Has("slug") && !query.Has("teamId")) {
 		w.WriteHeader(http.StatusPreconditionFailed)
 		w.Header().Set("Content-Type", "application/json")
+
 		_, err := w.Write([]byte(`{"error":{"message":"teamID or slug is missing","code":"required"}}`))
 		if err != nil {
 			logger.Log("message", err)
@@ -393,23 +385,27 @@ func readCacheItem(w http.ResponseWriter, r *http.Request) {
 	// Attempt to return the data from the cloud storage
 	item, err := readCacheBlob(artificateID, sanitisedteamID)
 	if err != nil {
+		logger.Log("message", "sending 404 as error occurred while reading cahe item", "error", err.Error())
 		logger.Log(err)
-		w.WriteHeader(http.StatusPreconditionFailed)
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"error":{"message":"Artifact not found","code":"not_found"}}`))
-		return
-	}
 
-	fileReference, err := item.Open()
-	if err != nil {
-		logger.Log(err)
-		w.WriteHeader(http.StatusPreconditionFailed)
+		w.WriteHeader(http.StatusNotFound)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"error":{"message":"Artifact not found","code":"not_found"}}`))
 		return
 	}
 
 	// Attempt to read the file contents of the artificats
+	fileReference, err := item.Open()
+	if err != nil {
+		defer fileReference.Close()
+
+		logger.Log("message", "sending 404 as error occurred while opening cace item from cloud storage", "error", err.Error())
+		w.WriteHeader(http.StatusNotFound)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"error":{"message":"Artifact not found","code":"not_found"}}`))
+		return
+	}
+
 	defer fileReference.Close()
 
 	w.WriteHeader((http.StatusOK))
@@ -420,6 +416,7 @@ func readCacheItem(w http.ResponseWriter, r *http.Request) {
 
 	n, err := io.Copy(w, fileReference)
 	if err != nil {
+		logger.Log("message", "error occurred while writing cache item to response", "error", err.Error())
 		logger.Log(err)
 		stdlog.Fatal(err)
 	}
@@ -502,7 +499,7 @@ func main() {
 	kingpin.Version("0.0.1")
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
-	fmt.Printf("projectID: %s kind: %s localStoragePath: %s aws.endpoint: %s google.endpoint: %s google.credentialsJsonPath: %s", *googleProjectID, *kind, *localStoragePath, *awsEndpoint, *googleEndpoint, *googleCredentialsJson)
+	fmt.Printf("projectID: %s kind: %s localStoragePath: %s aws.endpoint: %s google.endpoint: %s google.credentialsJsonPath: %s", *googleProjectID, *kind, *localStoragePath, *awsEndpoint, *googleEndpoint, *googleCredentialsJSON)
 
 	// Logfmt is a structured, key=val logging format that is easy to read and parse
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
