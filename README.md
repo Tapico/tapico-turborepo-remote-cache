@@ -50,16 +50,23 @@ Alternatively, you can also use the CLI arguments:
 ```bash
 usage: tapico-turborepo-remote-cache --turbo-token=TURBO-TOKEN [<flags>]
 
+A tool to work with Vercel Turborepo to upload/retrieve cache artefacts to/from popular cloud providers
+
 Flags:
       --help                     Show context-sensitive help (also try --help-long and --help-man).
   -v, --verbose                  Verbose mode.
-      --kind="s3"                Kind of storage provider to use (s3, gcp, local). ($CLOUD_PROVIDER_KIND)
+      --kind="s3"                Kind of storage provider to use (s3, gcs, local). ($CLOUD_PROVIDER_KIND)
       --secure                   Enable secure access (or HTTPs endpoints).
+      --bucket="tapico-remote-cache"
+                                 The name of the bucket ($BUCKET_NAME)
+      --enable-bucket-per-team   The name of the bucket
       --turbo-token=TURBO-TOKEN  The comma separated list of TURBO_TOKEN that the server should accept ($TURBO_TOKEN)
-      --google.endpoint="http://127.0.0.1:9000"
+      --google.endpoint=GOOGLE.ENDPOINT
                                  API Endpoint of cloud storage provide to use ($GOOGLE_ENDPOINT)
       --google.project-id=GOOGLE.PROJECT-ID
                                  The project id relevant for Google Cloud Storage ($GOOGLE_PROJECT_ID).
+      --google.credentials=GOOGLE.CREDENTIALS
+                                 The path to the credentials file ($GOOGLE_APPLICATION_CREDENTIALS).
       --local.project-id=LOCAL.PROJECT-ID
                                  The relative path to storage the cache artefacts when 'local' is enabled ($CLOUD_FILESYSTEM_PATH).
       --s3.endpoint=S3.ENDPOINT  The endpoint to use to connect to a Amazon S3 compatible cloud storage provider ($AWS_ENDPOINT).
@@ -68,8 +75,68 @@ Flags:
       --s3.secretKey=S3.SECRETKEY
                                  The Amazon S3 secret key ($AWS_SECRET_ACCESS_KEY).
       --s3.region=S3.REGION      The Amazon S3 region($AWS_S3_REGION_NAME).
-      --version                  Show application version.
 ```
+
+*Note*: You can use the environment variable `LISTEN_ADDRESS` to control to the address
+the web-server should listen to. The default value currently is `0.0.0.0:8080`.
+
+*Note*: Most of the arguments also alternatively accepts a environment variable instead
+the environment name is between brackets. For example, if you want to specify the list
+of accepted Turborepo tokens you can also set the environment variable `TURBO_TOKEN` instead
+of using the `--turbo-token`-argument.
+
+## Storing cache artefacts
+
+The service allows to store cache artefacts into Amazon S3 compatible cloud storage, or
+Google Cloud Storage. If the option `--enable-bucket-per-team` is enabled, the service
+will try to create a new bucket for each team id that's received.
+
+Alternatively, you can also use a single bucket, the name of the bucket can be controlled through
+the `--bucket` option. Using this approach does mean that each of the passed team id's will
+become a subdirectory in the bucket, and the directory will contain all the cache artefacts
+uploaded by Turborepo.
+
+## Running the server
+
+Two approaches are available to run the Tapico Turborepo Remote cache solution,
+one is to use the docker image that is available on [Github Packages](https://github.com/Tapico/tapico-turborepo-remote-cache/pkgs/container/tapico-turborepo-remote-cache) at:
+https://github.com/Tapico/tapico-turborepo-remote-cache/pkgs/container/tapico-turborepo-remote-cache
+the second solution is to download the binary via the [Github Releases](https://github.com/Tapico/tapico-turborepo-remote-cache/releases) at:
+https://github.com/Tapico/tapico-turborepo-remote-cache/releases
+
+You can deploy the service in your preferred way, we have been successfully running it via
+Google Cloud Run, but via Kubernetes or any solution that accepts a docker image or
+Go binary should work.
+
+### Google Cloud Run
+
+Before you can run the service on Cloud Run, you need to make sure that you have
+the docker image available in the Google Container Registry or Artefacts registry.
+If you are authenticated to the registry of choice, you can tag the docker image
+and push it to the registry.
+
+For the artefacts registry the following works:
+```bash
+# Pull the docker image from Github Packages you want to use via:
+docker pull ghcr.io/tapico/tapico-turborepo-remote-cache:sha-9229998
+
+# Tag the docker image for the container registry, e.g.
+docker tag ghcr.io/tapico/tapico-turborepo-remote-cache:sha-9229998 europe-west2-docker.pkg.dev/dev-sandbox-20211210/devops/tapico-remote-cache
+# Note: You can find the `pkg.dev url you need to use in Google Cloud Console
+
+# Last step, is to push the docker image to the container registry
+docker push europe-west2-docker.pkg.dev/dev-sandbox-20211210/devops/tapico-remote-cache
+```
+
+After the Docker image is available, you can create a new deployment in Cloud Run and
+select the docker image that you pushed to the Google container registry. You can configure
+the deployment to define the appropriate environment variables or specify the
+run arguments of your choice.
+
+Currently, you need to also set a special environment variable that defines the
+address the server should listen to for incoming requests to be `0.0.0.0:8080` to
+ensure the Tapico Turborepo Remote cache can receive requests on Cloud Run.
+
 ## Configuring Turbo
 
 After you have started the server you need to change the configuration of Turbo
@@ -93,13 +160,11 @@ force the generating of new cache artefacts and upload it to our server.
 
 Alternatively, you can also use the arguments `--api="http://127.0.0.1:8080" --token="xxxxxxxxxxxxxxxxx"`
 
-Token can also be specified as enviroment variable `TURBO_TOKEN=xxxxx`, for example: `TURBO_TOKEN=xxxx turbo run build`
+Token can also be specified as environment variable `TURBO_TOKEN=xxxxx`, for example: `TURBO_TOKEN=xxxx turbo run build`
 
-NOTE: CLI argument `--team` is not supported, please only use `teamId` from `.turbo/config.json`.
-
-The `teamId` in `.turbo/config.json` is
-used to generate a bucket in the cloud storage provider, as the id might be an
-invalid name the team identifier a MD5 hash is generated and used as the bucket name.
+If the option `--enable-bucket-per-team` is enabled, the `teamId` in `.turbo/config.json` is
+used to generate a bucket in the cloud storage provider, as the id might be an invalid name
+the team identifier a MD5 hash is generated and used as the bucket name.
 
 ## Developing
 

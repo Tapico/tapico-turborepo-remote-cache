@@ -1,0 +1,64 @@
+version: '3'
+
+services:
+  tapico_remote_cache:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    depends_on:
+      - minio
+    ports:
+      - "8080:8080"
+    environment:
+      - LISTEN_ADDRESS=0.0.0.0:8080
+      - BUCKET_NAME=tapico-remote-cache
+      - CLOUD_PROVIDER_KIND=s3
+      - TURBO_TOKEN=2a25157f-3ff9-440a-b549-b0fe7fb4a5ea
+      - AWS_ENDPOINT=http://minio:9000
+      - CLOUD_SECURE=false
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-miniosecretkey}
+      - AWS_S3_REGION_NAME=eu-west-1
+    networks:
+      - internal
+      - public
+
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=${AWS_ACCESS_KEY_ID:-minio}
+      - MINIO_ROOT_PASSWORD=${AWS_SECRET_ACCESS_KEY:-miniosecretkey}
+    command: server /data --console-address ":9001"
+    networks:
+      - internal
+      - public
+    volumes:
+      - ./data/minio:/data
+
+  # Create the bucket needed by the service
+  createbuckets:
+      image: minio/mc
+      depends_on:
+        - minio
+      entrypoint: >
+        /bin/sh -c "
+        sleep 5;
+        /usr/bin/mc alias set minio http://minio:9000 minio miniosecretkey;
+        /usr/bin/mc rm -r --force minio/tapico-remote-cache || true;
+        /usr/bin/mc mb minio/tapico-remote-cache;
+        /usr/bin/mc policy set none minio/tapico-remote-cache;
+        exit 0;
+        "
+      networks:
+        - internal
+        - public
+
+networks:
+  internal:
+  public:
+    driver: bridge
+volumes:
+  minio_volume:
