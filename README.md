@@ -18,12 +18,18 @@ on a Amazon S3 compatible cloud storage provider, it will start a HTTP server on
 ```bash
 ./tapico-turborepo-remote-cache --kind="s3" --s3.endpoint="http://127.0.0.1:9000" --s3.accessKeyId="minio" --s3.secretKey="miniosecretkey" --s3.region="eu-west-1" --turbo-token="your-turbo-token"
 ```
+
 *Note*: The above example can be used to test against the Minio instance of the `docker-compose.yml` file found in the `dev`-directory.
 
 At this time the server doesn't support running over HTTPS, you might want to consider
 using a load balancer to expose the server over HTTPS to the internet.
 
 You can download [binaries](https://github.com/Tapico/tapico-turborepo-remote-cache/releases) of the applications via the Releases page, and pre-build docker images are available in the [`tapico-turborepo-remote-cache` section in Packages](https://github.com/orgs/Tapico/packages/container/package/tapico-turborepo-remote-cache) section.
+
+## Example
+
+An example is available that demonstrate how to use the the Turbo remote cache server together with the [Amazon S3 compatible object atorage Minio](https://min.io) using
+Docker Compose, the example can be found in [examples/with-docker-compose](https://github.com/Tapico/tapico-turborepo-remote-cache/tree/main/examples/with-docker-compose).
 
 ### Configuration
 
@@ -34,6 +40,9 @@ The configuration is currently handled via environment variables, the following
 are available:
 
   - `CLOUD_PROVIDER_KIND`: `s3`, `gcs` or `local`
+  - `BUCKET_NAME`: the name of the bucket to store the cache artefacts
+  - `LISTEN_ADDRESS`: the address the server to listen to (defaults to: `127.0.0.1:8080`) 
+     when deploying it to the internet you should consider using `0.0.0.0:8080` instead, the `8080` representa the port.
   - `GOOGLE_CREDENTIALS_FILE`: location the google credentials json file
   - `GOOGLE_PROJECT_ID`: the project id
   - `GOOGLE_ENDPOINT`: the endpoint to use for Google Cloud Storage (e.g. for emulator)
@@ -78,7 +87,7 @@ Flags:
 ```
 
 *Note*: You can use the environment variable `LISTEN_ADDRESS` to control to the address
-the web-server should listen to. The default value currently is `0.0.0.0:8080`.
+the web-server should listen to. The default value currently is `127.0.0.1:8080`.
 
 *Note*: Most of the arguments also alternatively accepts a environment variable instead
 the environment name is between brackets. For example, if you want to specify the list
