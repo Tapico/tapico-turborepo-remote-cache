@@ -1,8 +1,12 @@
 # README
 
-An example how to run Tapico Turborepo Remote cache with Minio
+In this example, we will be using the open-source solution Minio, which offers an API that is compatible with Amazon S3. In our case, the data of the bucket will be stored on the file system. The example shows how you can connect to a cloud provider that is compatible with the Amazon S3 API endpoints. 
 
-*Note*: This is for demonstration purposes only
+Typically, when you are planning to use S3 you won't need to define this as the server will use the defaults for Amazon S3 when it's not given. But it illustrates how you could use an Amazon S3 compatible cloud storage provider, such as Walabi, Blackblaze or Scaleway
+
+This example, the main addition is using the `AWS_ENDPOINT` to specify the location of the API endpoint. 
+
+*This is for demonstration purposes only*
 
 ## Getting Started
 
