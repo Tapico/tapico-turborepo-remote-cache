@@ -16,7 +16,13 @@ You can execute this application by running when you want to store your cache ar
 on a Amazon S3 compatible cloud storage provider, it will start a HTTP server on port 8080:
 
 ```bash
-./tapico-turborepo-remote-cache --kind="s3" --s3.endpoint="http://127.0.0.1:9000" --s3.accessKeyId="minio" --s3.secretKey="miniosecretkey" --s3.region="eu-west-1" --turbo-token="your-turbo-token"
+./tapico-turborepo-remote-cache \
+  --kind="s3" \
+  --s3.endpoint="http://127.0.0.1:9000" \
+  --s3.accessKeyId="minio" \
+  --s3.secretKey="miniosecretkey" \
+  --s3.region="eu-west-1" \
+  --turbo-token="your-turbo-token"
 ```
 
 *Note*: The above example can be used to test against the Minio instance of the `docker-compose.yml` file found in the `dev`-directory.
