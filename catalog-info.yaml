@@ -1,0 +1,15 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: tapico-turborepo-remote-cache
+  title: tapico-turborepo-remote-cache
+  description: Service which handles the execution of scheduled and non-scheduled tasks
+  annotations:
+    github.com/project-slug: tapico-turborepo-remote-cache
+    backstage.io/techdocs-ref: dir:.
+  tags:
+    - go
+spec:
+  type: service
+  owner: engineering
+  lifecycle: experimental
