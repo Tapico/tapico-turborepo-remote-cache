@@ -2,9 +2,9 @@
 
 This is an implementation of Vercel's Turborepo Remote Cache API endpoints used
 by the `turborepo` CLI command. This solution allows you to get control over where
-the cache arteficats are being stored.
+the cache artefacts are being stored.
 
-The CLI tool currently supports the following targets for the cache arteficats:
+The CLI tool currently supports the following targets for the cache artefacts:
 
   - `gcs`: Google Cloud Storage
   - `s3`: Amazon S3
@@ -40,7 +40,7 @@ Docker Compose, the example can be found in [examples/with-docker-compose](https
 ### Configuration
 
 The server supports three kind of cloud storage, which are `s3`, `gcs` and `local`,
-the latter will store the cache artefects on the local file system on a relative path.
+the latter will store the cache artefacts on the local file system on a relative path.
 
 The configuration is currently handled via environment variables, the following
 are available:
